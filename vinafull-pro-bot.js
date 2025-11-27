@@ -11,7 +11,7 @@ const CONFIG = {
   TELEGRAM_CHAT_ID: "891405971", // ← Thay chat ID của bạn
 
   // ⏰ THỜI GIAN FARM - CHỈ CẦN SỬA 1 DÒNG NÀY!
-  FARM_INTERVAL_SECONDS: 62, // ← Thay số này để đổi thời gian lặp (ví dụ: 60, 65, 120...)
+  FARM_INTERVAL_SECONDS: 60 * 10, // ← Thay số này để đổi thời gian lặp (ví dụ: 60, 65, 120...)
 
   // Tùy chọn thêm (nếu muốn random nhẹ)
   RANDOM_DELAY: true, // true = thêm 0-10s ngẫu nhiên, false = đúng bằng số trên
