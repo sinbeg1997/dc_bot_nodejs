@@ -1,19 +1,27 @@
-// vinafull-pro-bot.js - Bot Telegram + Multi Account + Notify + Control
+// vinafull-pro-bot.js (Phiên bản cuối - Đã tối ưu thời gian farm)
+
 const axios = require("axios");
 const { wrapper } = require("axios-cookiejar-support");
 const tough = require("tough-cookie");
 const { Telegraf } = require("telegraf");
 
-// ================== CẤU HÌNH ==================
-const TELEGRAM_BOT_TOKEN = "8474970785:AAFKhklsNEDVwPMbT45SFJJDZcMoCgl-MfQ"; // Thay bằng token của bạn
-const TELEGRAM_CHAT_ID = "891405971"; // Thay bằng chat id của bạn (số)
+// ================== CẤU HÌNH TOÀN CỤC ==================
+const CONFIG = {
+  TELEGRAM_BOT_TOKEN: "8474970785:AAFKhklsNEDVwPMbT45SFJJDZcMoCgl-MfQ", // ← Thay token
+  TELEGRAM_CHAT_ID: "891405971", // ← Thay chat ID của bạn
+
+  // ⏰ THỜI GIAN FARM - CHỈ CẦN SỬA 1 DÒNG NÀY!
+  FARM_INTERVAL_SECONDS: 62, // ← Thay số này để đổi thời gian lặp (ví dụ: 60, 65, 120...)
+
+  // Tùy chọn thêm (nếu muốn random nhẹ)
+  RANDOM_DELAY: true, // true = thêm 0-10s ngẫu nhiên, false = đúng bằng số trên
+};
 
 const ACCOUNTS = [
   { name: "SinhHN", code: "d9fd932e-4853-4d1a-b8f3-2c9cf71770fe" },
   { name: "bean02", code: "7443247a-4bb0-4aa3-94a5-98b712597004" },
   { name: "dogfish65", code: "ac88872c-db4f-480b-bb04-54ba159fd400" },
   { name: "thedeepcat", code: "6a10e57f-9114-4269-8e60-edabda464c9e" },
-  // Thêm tài khoản thoải mái
 ];
 
 const LOGIN_URL = "https://vinafull.com/login";
@@ -25,8 +33,17 @@ const WATERFALL_STEPS = [
   { mode: "warrior-chest", name: "Mở rương chiến binh" },
 ];
 
+// ================== TÍNH TOÁN THỜI GIAN ==================
+function getFarmIntervalMs() {
+  let base = CONFIG.FARM_INTERVAL_SECONDS * 1000;
+  if (CONFIG.RANDOM_DELAY) {
+    base += Math.random() * 10000; // +0 đến +10 giây
+  }
+  return Math.floor(base);
+}
+
 // ================== BIẾN TOÀN CỤC ==================
-const bot = new Telegraf(TELEGRAM_BOT_TOKEN);
+const bot = new Telegraf(CONFIG.TELEGRAM_BOT_TOKEN);
 let bots = {}; // { accountName: { client, interval, running: true } }
 let isGlobalRunning = true;
 
@@ -36,7 +53,7 @@ const timeNow = () => new Date().toLocaleTimeString("vi-VN", { hour12: false });
 
 async function sendTelegram(msg) {
   try {
-    await bot.telegram.sendMessage(TELEGRAM_CHAT_ID, msg, {
+    await bot.telegram.sendMessage(CONFIG.TELEGRAM_CHAT_ID, msg, {
       parse_mode: "HTML",
     });
   } catch (err) {
@@ -93,7 +110,9 @@ async function doWaterfall(client, account) {
       const output = result || "OK";
 
       const icon =
-        output.includes("thành công") || output === "OK" ? "✅" : "⚠️";
+        output.toLowerCase().includes("thành công") || output === "OK"
+          ? "✅"
+          : "⚠️";
       await sendTelegram(
         `${icon} <b>${account.name}</b> → ${step.name}\n<code>${output}</code>`
       );
@@ -120,33 +139,48 @@ async function startAccountBot(account) {
     return;
   }
 
-  // Chạy lần đầu
   await doWaterfall(client, account);
 
-  // Lặp lại mỗi 60-70s
+  const intervalMs = getFarmIntervalMs();
   const interval = setInterval(async () => {
     if (isGlobalRunning && bots[account.name]?.running) {
-      await sendTelegram(`\n🔄 <b>${account.name}</b> — Vòng farm mới —`);
+      const nextIn = Math.round(intervalMs / 1000);
+      await sendTelegram(
+        `\n🔄 <b>${account.name}</b> — Vòng farm mới (mỗi ~${nextIn}s) —`
+      );
       await doWaterfall(client, account);
     }
-  }, (60 + Math.random() * 10) * 1000);
+  }, intervalMs);
 
   bots[account.name] = { client, interval, running: true };
+  console.log(
+    `[${timeNow()}] ✅ [${account.name}] Bot khởi động - Chu kỳ: ~${Math.round(
+      intervalMs / 1000
+    )}s`
+  );
 }
 
 // ================== LỆNH TELEGRAM ==================
 bot.start((ctx) =>
-  ctx.reply("🚀 Vinafull Pro Bot đã sẵn sàng!\nDùng /status /stop /relogin")
+  ctx.reply(
+    `🚀 Vinafull Pro Bot v2\nChu kỳ farm: ${CONFIG.FARM_INTERVAL_SECONDS}s ${
+      CONFIG.RANDOM_DELAY ? "+ random" : ""
+    }\nDùng /status /stop /relogin`
+  )
 );
 
 bot.command("status", async (ctx) => {
-  const running = Object.keys(bots).filter(
-    (name) => bots[name]?.running
-  ).length;
+  const running = Object.keys(bots).filter((n) => bots[n]?.running).length;
+  const cycle = CONFIG.RANDOM_DELAY
+    ? `${CONFIG.FARM_INTERVAL_SECONDS}-${CONFIG.FARM_INTERVAL_SECONDS + 10}s`
+    : `${CONFIG.FARM_INTERVAL_SECONDS}s`;
+
   await ctx.reply(
     `📊 Trạng thái: ${
-      isGlobalRunning ? "ĐANG CHẠY" : "ĐÃ DỪNG"
-    }\n👥 Tài khoản hoạt động: ${running}/${ACCOUNTS.length}`
+      isGlobalRunning ? "🟢 ĐANG CHẠY" : "🔴 ĐÃ DỪNG"
+    }\n⏰ Chu kỳ: ${cycle}\n👥 Đang farm: ${running}/${
+      ACCOUNTS.length
+    } tài khoản`
   );
 });
 
@@ -154,52 +188,54 @@ bot.command("stop", async (ctx) => {
   isGlobalRunning = false;
   Object.keys(bots).forEach((name) => {
     bots[name].running = false;
-    if (bots[name].interval) clearInterval(bots[name].interval);
+    clearInterval(bots[name].interval);
   });
   await ctx.reply("🛑 ĐÃ DỪNG TOÀN BỘ BOT!");
-  await sendTelegram("🛑 <b>TẤT CẢ TÀI KHOẢN ĐÃ BỊ DỪNG THEO LỆNH</b>");
+  await sendTelegram("🛑 <b>TẤT CẢ TÀI KHOẢN ĐÃ BỊ DỪNG</b>");
 });
 
 bot.command("relogin", async (ctx) => {
-  await ctx.reply("🔄 Đang đăng nhập lại toàn bộ tài khoản...");
-  await sendTelegram("🔄 <b>RELOGIN TOÀN BỘ TÀI KHOẢN</b>");
+  await ctx.reply("🔄 Đang đăng nhập lại toàn bộ...");
+  await sendTelegram(
+    `🔄 <b>RELOGIN TOÀN BỘ - Chu kỳ mới: ~${CONFIG.FARM_INTERVAL_SECONDS}s</b>`
+  );
 
   isGlobalRunning = true;
   bots = {};
 
   ACCOUNTS.forEach((acc, i) => {
-    setTimeout(() => startAccountBot(acc), i * 5000); // Cách nhau 5s để tránh flood
+    setTimeout(() => startAccountBot(acc), i * 5000);
   });
 });
 
-// Chỉ cho phép bạn dùng bot (bảo mật)
+// Bảo mật: chỉ chủ sở hữu dùng được
 bot.use((ctx, next) => {
-  if (ctx.chat.id.toString() !== TELEGRAM_CHAT_ID) {
-    return ctx.reply("Bạn không có quyền dùng bot này.");
+  if (String(ctx.chat?.id) !== CONFIG.TELEGRAM_CHAT_ID) {
+    return ctx.reply("🚫 Không có quyền truy cập.");
   }
   return next();
 });
 
 // ================== KHỞI ĐỘNG ==================
-console.log("🚀 Vinafull Pro Bot đang khởi động...");
+console.log("🚀 Khởi động Vinafull Pro Bot...");
 sendTelegram(
-  "🚀 <b>Vinafull Pro Bot đã khởi động!</b>\nSẵn sàng farm " +
-    ACCOUNTS.length +
-    " tài khoản"
+  `🚀 <b>Bot đã khởi động!</b>\n👥 ${ACCOUNTS.length} tài khoản\n⏰ Chu kỳ: ~${
+    CONFIG.FARM_INTERVAL_SECONDS
+  }s ${CONFIG.RANDOM_DELAY ? "+ random" : ""}`
 );
 
-bot.launch().then(() => console.log("Bot Telegram đã kết nối"));
+bot.launch();
+console.log("Telegram Bot đã kết nối");
 
-// Khởi động tất cả tài khoản (cách nhau để tránh bị block)
-ACCOUNTS.forEach((acc, index) => {
+// Khởi động từng acc
+ACCOUNTS.forEach((acc, i) => {
   setTimeout(() => {
     if (isGlobalRunning) startAccountBot(acc);
-  }, index * 7000 + Math.random() * 5000);
+  }, i * 7000 + Math.random() * 3000);
 });
 
-// Xử lý tắt bot an toàn
 process.on("SIGINT", () => {
-  sendTelegram("Bot đã bị tắt thủ công!");
-  bot.stop("SIGINT");
+  sendTelegram("Bot đã bị tắt!");
+  bot.stop();
   process.exit();
 });
