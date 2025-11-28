@@ -229,29 +229,13 @@ async function doRefreshInfo(client, account) {
     const res = await client.get(REFRESH_INFO_URL);
     const info = res.data;
 
-    // Format thông tin đẹp
-    let infoMsg = `<b>${account.name}</b> → Thông tin tài khoản\n`;
-    if (typeof info === "object") {
-      // Parse JSON nếu có các field phổ biến
-      infoMsg += `💎 <b>Diamond:</b> ${
-        info.diamond || info.Diamond || "N/A"
-      }\n`;
-      infoMsg += `🥩 <b>Food:</b> ${info.food || info.Food || "N/A"}\n`;
-      infoMsg += `⚔️ <b>Attack:</b> ${info.attack || info.Attack || "N/A"}\n`;
-      infoMsg += `🛡️ <b>Defense:</b> ${
-        info.defense || info.Defense || "N/A"
-      }\n`;
-      infoMsg += `👑 <b>Level:</b> ${info.level || info.Level || "N/A"}\n`;
-      // Thêm raw data nếu cần
-      if (Object.keys(info).length > 10) {
-        infoMsg += `\n📋 <code>Raw: ${JSON.stringify(info).substring(
-          0,
-          200
-        )}...</code>`;
-      }
-    } else {
-      infoMsg += `<code>${info}</code>`;
-    }
+    // Format thông tin theo yêu cầu CHÍNH XÁC
+    let infoMsg = `<b>${account.name}</b> → <b>Thông tin tài khoản</b>\n`;
+    infoMsg += `👑 <b>Level:</b> ${info.level?.current || "N/A"}\n`;
+    infoMsg += `💎 <b>Gems:</b> ${info.cash?.current || "N/A"}\n`;
+    infoMsg += `🪙 <b>Gold:</b> ${info.gold?.current || "N/A"}\n`;
+    infoMsg += `🥩 <b>Food:</b> ${info.food?.current || "N/A"}\n`;
+    infoMsg += `⚡ <b>Stamina:</b> ${info.stamina?.current || "N/A"}\n`;
 
     await sendTelegram(`✅ ${infoMsg}`);
   } catch (err) {
