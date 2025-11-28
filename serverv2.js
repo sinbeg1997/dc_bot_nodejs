@@ -221,6 +221,11 @@ async function doCollectFood(client, account) {
   }
 }
 
+// ================== HÀM FORMAT SỐ ĐẸP ==================
+function formatNumber(num) {
+  if (num === null || num === undefined || num === "N/A") return "N/A";
+  return Number(num).toLocaleString("en-US");
+}
 // 📊 REFRESH INFO (GET /refresh-info)
 async function doRefreshInfo(client, account) {
   if (!isGlobalRunning || !bots[account.name]?.running) return;
@@ -229,13 +234,13 @@ async function doRefreshInfo(client, account) {
     const res = await client.get(REFRESH_INFO_URL);
     const info = res.data;
 
-    // Format thông tin theo yêu cầu CHÍNH XÁC
+    // Format thông tin với SỐ ĐẸP
     let infoMsg = `<b>${account.name}</b> → <b>Thông tin tài khoản</b>\n`;
-    infoMsg += `👑 <b>Level:</b> ${info.level?.current || "N/A"}\n`;
-    infoMsg += `💎 <b>Gems:</b> ${info.cash?.current || "N/A"}\n`;
-    infoMsg += `🪙 <b>Gold:</b> ${info.gold?.current || "N/A"}\n`;
-    infoMsg += `🥩 <b>Food:</b> ${info.food?.current || "N/A"}\n`;
-    infoMsg += `⚡ <b>Stamina:</b> ${info.stamina?.current || "N/A"}\n`;
+    infoMsg += `👑 <b>Level:</b> ${formatNumber(info.level?.current)}\n`;
+    infoMsg += `💎 <b>Gems:</b> ${formatNumber(info.cash?.current)}\n`;
+    infoMsg += `🪙 <b>Gold:</b> ${formatNumber(info.gold?.current)}\n`;
+    infoMsg += `🥩 <b>Food:</b> ${formatNumber(info.food?.current)}\n`;
+    infoMsg += `⚡ <b>Stamina:</b> ${formatNumber(info.stamina?.current)}\n`;
 
     await sendTelegram(`✅ ${infoMsg}`);
   } catch (err) {
