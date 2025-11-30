@@ -474,12 +474,12 @@ bot.command("stop", async (ctx) => {
     clearInterval(bots[name].watchTvInterval);
     clearInterval(bots[name].freeFoodInterval);
   });
-  await ctx.reply("🛑 <b>ĐÃ DỪNG TOÀN BỘ BOT!</b>");
+  await ctx.reply("🛑 ĐÃ DỪNG TOÀN BỘ BOT!");
   await sendTelegram("🛑 <b>TẤT CẢ TÀI KHOẢN ĐÃ BỊ DỪNG</b>");
 });
 
 bot.command("relogin", async (ctx) => {
-  await ctx.reply("🔄 <b>Đang đăng nhập lại toàn bộ...</b>");
+  await ctx.reply("🔄 Đang đăng nhập lại toàn bộ...");
   await sendTelegram(
     `🔄 <b>RELOGIN TOÀN BỘ</b>\n` +
       `⏰ Farm: ~${CONFIG.FARM_INTERVAL_SECONDS}s | 📺 TV: ${CONFIG.WATCH_TV_INTERVAL_MINUTES}m | 🍖 Food: ${CONFIG.FREE_FOOD_INTERVAL_MINUTES}m`
@@ -499,6 +499,130 @@ bot.use((ctx, next) => {
     return ctx.reply("🚫 <b>Không có quyền truy cập.</b>");
   }
   return next();
+});
+
+// ================== LỆNH MỚI BẠN YÊU CẦU ==================
+
+// 1. /arena – Đánh Arena 6 lần liên tiếp (theo WATERFALL_STEPS)
+bot.command("arena", async (ctx) => {
+  await ctx.reply(
+    "⚔️ <b>Đang thực hiện Arena 6 lần cho tất cả tài khoản...</b>"
+  );
+  await sendTelegram("⚔️ <b>COMMAND: ARENA 6 LẦN</b>");
+
+  const promises = ACCOUNTS.map(async (account) => {
+    const botData = bots[account.name];
+    if (!botData?.client || !botData.running) return;
+
+    for (let round = 1; round <= 6; round++) {
+      if (!isGlobalRunning || !bots[account.name]?.running) break;
+
+      await sendTelegram(`⚔️ <b>${account.name}</b> → Vòng Arena ${round}/6`);
+
+      for (const step of WATERFALL_STEPS) {
+        try {
+          const res = await botData.client.post(
+            PACKET_URL,
+            `mode=${step.mode}`,
+            {
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            }
+          );
+          const result =
+            typeof res.data === "object"
+              ? JSON.stringify(res.data)
+              : (res.data || "").trim();
+          const icon =
+            result.toLowerCase().includes("thành công") || result === "OK"
+              ? "✅"
+              : "⚠️";
+          await sendTelegram(
+            `${icon} <b>${account.name}</b> → ${step.name} (lần ${round})\n<code>${result}</code>`
+          );
+        } catch (err) {
+          const msg = err.response?.data || err.message;
+          await sendTelegram(
+            `❌ <b>${account.name}</b> → ${step.name} thất bại (lần ${round})\n<code>${msg}</code>`
+          );
+        }
+        await delay(1200 + Math.random() * 1800);
+      }
+      if (round < 6) await delay(3000); // Nghỉ giữa các vòng arena
+    }
+  });
+
+  await Promise.all(promises);
+  await ctx.reply("✅ <b>Hoàn thành Arena 6 lần cho tất cả tài khoản!</b>");
+});
+
+// 2. /greenhouse – Gọi mode=greenhouse 1 lần mỗi tài khoản
+bot.command("greenhouse", async (ctx) => {
+  await ctx.reply(
+    "🌱 <b>Đang thực hiện Greenhouse cho tất cả tài khoản...</b>"
+  );
+  await sendTelegram("🌱 <b>COMMAND: GREENHOUSE</b>");
+
+  const promises = ACCOUNTS.map(async (account) => {
+    const botData = bots[account.name];
+    if (!botData?.client || !botData.running) return;
+
+    try {
+      const res = await botData.client.post(PACKET_URL, `mode=greenhouse`, {
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+      const result =
+        typeof res.data === "object"
+          ? JSON.stringify(res.data)
+          : (res.data || "").trim();
+      const icon =
+        result.toLowerCase().includes("thành công") || result === "OK"
+          ? "🌱✅"
+          : "🌱⚠️";
+      await sendTelegram(
+        `${icon} <b>${account.name}</b> → Greenhouse\n<code>${result}</code>`
+      );
+    } catch (err) {
+      const msg = err.response?.data || err.message;
+      await sendTelegram(
+        `🌱❌ <b>${account.name}</b> → Greenhouse thất bại\n<code>${msg}</code>`
+      );
+    }
+    await delay(2000);
+  });
+
+  await Promise.all(promises);
+  await ctx.reply("✅ <b>Hoàn thành Greenhouse!</b>");
+});
+
+// 3. /help – Liệt kê đầy đủ tất cả lệnh hiện có (cập nhật mới nhất)
+bot.command("help", async (ctx) => {
+  const helpMsg = `
+<b>📋 DANH SÁCH LỆNH BOT v4 (CẬP NHẬT MỚI NHẤT)</b>
+
+<b>╭─ Lệnh chính</b>
+├ /start – Xem thông tin bot
+├ /status – Xem trạng thái hiện tại
+├ /stop – Dừng toàn bộ bot
+├ /relogin – Đăng nhập lại tất cả
+
+<b>╭─ Lệnh hành động ngay</b>
+├ /arena – Đánh Arena 6 lần liên tiếp
+├ /greenhouse – Thu hoạch nhà kính (1 lần)
+├ /watchtv – Xem TV ngay
+├ /freefood100k – Free Food 100k (1 lần)
+├ /collectfood – Thu hoạch thức ăn
+
+<b>╭─ Lệnh thông tin</b>
+├ /refreshinfo – Cập nhật thông tin tài khoản
+└ /help – Xem danh sách lệnh này
+
+<b>⏰ Tự động:</b>
+├ Farm chính: ~${CONFIG.FARM_INTERVAL_SECONDS}s
+├ Watch TV: ${CONFIG.WATCH_TV_INTERVAL_MINUTES} phút
+└ Free Food (5 lần): ${CONFIG.FREE_FOOD_INTERVAL_MINUTES} phút
+  `.trim();
+
+  await ctx.reply(helpMsg, { parse_mode: "HTML" });
 });
 
 // ================== KHỞI ĐỘNG ==================
