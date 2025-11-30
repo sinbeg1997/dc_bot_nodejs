@@ -18,7 +18,7 @@ const CONFIG = {
   FREE_FOOD_INTERVAL_MINUTES: 730, // Free food mỗi 730 phút (12+ giờ)
 
   // Tùy chọn thêm
-  RANDOM_DELAY: false, // true = thêm 0-10s ngẫu nhiên, false = đúng bằng số trên
+  RANDOM_DELAY: true, // true = thêm 0-10s ngẫu nhiên, false = đúng bằng số trên
 };
 
 const ACCOUNTS = [
