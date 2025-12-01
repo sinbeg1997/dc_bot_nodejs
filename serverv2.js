@@ -72,13 +72,55 @@ let isGlobalRunning = true;
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 const timeNow = () => new Date().toLocaleTimeString("vi-VN", { hour12: false });
 
-async function sendTelegram(msg) {
-  try {
-    await bot.telegram.sendMessage(CONFIG.TELEGRAM_CHAT_ID, msg, {
-      parse_mode: "HTML",
-    });
-  } catch (err) {
-    console.error("Lỗi gửi Telegram:", err.message);
+// ================== HỖ TRỢ - PHIÊN BẢN SIÊU BỀN (THAY THẾ HOÀN TOÀN) ==================
+async function sendTelegram(msg, retryCount = 0) {
+  const MAX_RETRIES = 3;
+  const TIMEOUT_MS = 25000; // 25 giây timeout (rất hợp lý)
+
+  for (let i = 0; i <= MAX_RETRIES; i++) {
+    try {
+      await bot.telegram
+        .sendMessage(
+          CONFIG.TELEGRAM_CHAT_ID,
+          msg.slice(0, 4090), // Telegram giới hạn 4096 ký tự, cắt cho chắc
+          {
+            parse_mode: "HTML",
+            disable_web_page_preview: true,
+          }
+        )
+        .catch((err) => {
+          throw err;
+        }); // ép catch bên ngoài
+
+      return; // Thành công → thoát luôn
+    } catch (err) {
+      const isLastTry = i === MAX_RETRIES;
+      const waitMs = 3000 + i * 5000 + Math.random() * 3000; // tăng dần + random
+
+      // Chỉ log lỗi lần cuối để không spam console
+      if (isLastTry || retryCount === 0) {
+        console.error(
+          `[${timeNow()}] Telegram gửi thất bại (lần ${i + 1}/${
+            MAX_RETRIES + 1
+          }):`,
+          err.message || err.description || err
+        );
+      }
+
+      if (isLastTry) {
+        // Dù thất bại hoàn toàn → vẫn không crash bot
+        console.error(
+          `[${timeNow()}] ⚠️ BỎ QUA tin nhắn (không gửi được sau ${
+            MAX_RETRIES + 1
+          } lần):`,
+          msg.substring(0, 200) + "..."
+        );
+        return;
+      }
+
+      // Chờ trước khi thử lại
+      await delay(waitMs);
+    }
   }
 }
 
@@ -635,6 +677,22 @@ sendTelegram(
     `🍖 Free Food: ${CONFIG.FREE_FOOD_INTERVAL_MINUTES} phút (5 lần)\n` +
     `📋 Commands: /freefood100k /watchtv /refreshinfo /collectfood`
 );
+
+// ================== BẢO VỆ TOÀN CỤC - KHÔNG ĐỂ BOT CHẾT ==================
+bot.catch((err, ctx) => {
+  console.error(`[${timeNow()}] Lỗi Telegraf (đã được bắt):`, err);
+  // Không reply gì cả để tránh loop lỗi
+});
+
+// Bắt lỗi không đồng bộ (unhandledRejection & uncaughtException)
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("Unhandled Rejection:", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+  // Không process.exit() để bot vẫn sống
+});
 
 bot.launch();
 console.log("✅ Telegram Bot đã kết nối");
