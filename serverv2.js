@@ -547,31 +547,30 @@ bot.use((ctx, next) => {
 
 // 1. /arena – Đánh Arena 6 lần liên tiếp (theo WATERFALL_STEPS)
 bot.command("arena", async (ctx) => {
-  await ctx.reply(
-    "⚔️ <b>Đang thực hiện Arena 6 lần cho tất cả tài khoản...</b>"
-  );
-  await sendTelegram("⚔️ <b>COMMAND: ARENA 6 LẦN - BẮT ĐẦU</b>");
+  await ctx.reply("⚔️ Đang thực hiện Arena 6 lần cho tất cả tài khoản...");
+  await sendTelegram("⚔️ <b>COMMAND: ARENA 6 LẦN</b>");
 
-  const results = {}; // Lưu kết quả từng acc để gộp lại gửi 1 lần cuối
+  const results = {};
 
   await Promise.all(
     ACCOUNTS.map(async (account) => {
       const botData = bots[account.name];
       if (!botData?.client || !botData.running) {
-        results[account.name] = "⚠️ Bot không chạy hoặc chưa login";
+        results[account.name] = "⚠️ Bot không chạy";
         return;
       }
 
       let summary = `<b>${account.name}</b> → Arena 6 lần:\n`;
+      let totalSuccess = 0;
 
       for (let round = 1; round <= 6; round++) {
         if (!isGlobalRunning || !bots[account.name]?.running) {
-          summary += `❌ Dừng giữa chừng tại vòng ${round}\n`;
+          summary += `   • Vòng ${round}: Dừng giữa chừng\n`;
           break;
         }
 
+        const stepResults = [];
         let roundSuccess = true;
-        let roundMsg = `   • Vòng ${round}: `;
 
         for (const step of WATERFALL_STEPS) {
           try {
@@ -584,43 +583,75 @@ bot.command("arena", async (ctx) => {
                 },
               }
             );
-            const result = (res.data || "").toString().trim();
-            const success =
-              result.toLowerCase().includes("thành công") || result === "OK";
 
+            let message = "OK";
+            let success = true;
+
+            // Xử lý đúng response JSON
+            if (res.data && typeof res.data === "object") {
+              message = res.data.message || JSON.stringify(res.data);
+              success = !!res.data.success;
+            } else if (typeof res.data === "string") {
+              try {
+                const parsed = JSON.parse(res.data);
+                message = parsed.message || res.data;
+                success = !!parsed.success;
+              } catch {
+                message = res.data.trim() || "OK";
+              }
+            }
+
+            // Cắt ngắn nếu quá dài
+            if (message.length > 100) message = message.slice(0, 97) + "...";
+
+            stepResults.push(
+              `${success ? "✅" : "❌"} ${step.name}: ${message}`
+            );
             if (!success) roundSuccess = false;
-
-            // Không gửi từng tin ở đây nữa
           } catch (err) {
+            const errMsg =
+              err.response?.data?.message || err.message || "Lỗi mạng";
+            stepResults.push(`❌ ${step.name}: ${errMsg.slice(0, 100)}`);
             roundSuccess = false;
           }
+
           await delay(1200 + Math.random() * 1800);
         }
 
-        roundMsg += roundSuccess ? "✅" : "❌";
-        summary += roundMsg + "\n";
+        if (roundSuccess) totalSuccess++;
+
+        summary += `   • Vòng ${round}: ${
+          roundSuccess ? "THÀNH CÔNG" : "THẤT BẠI"
+        }\n`;
+
+        // Chỉ hiện chi tiết khi có lỗi hoặc 2 vòng đầu
+        if (!roundSuccess || round <= 2) {
+          stepResults.forEach((line) => (summary += `      ${line}\n`));
+        } else if (round === 3) {
+          summary += `      (...các vòng sau thành công, ẩn bớt)\n`;
+        }
 
         if (round < 6) await delay(3000);
       }
 
+      summary += `\n   → Tổng: <b>${totalSuccess}/6</b> vòng thành công\n`;
       results[account.name] = summary;
     })
   );
 
-  // === GỘP TẤT CẢ KẾT QUẢ GỬI 1 LẦN DUY NHẤT ===
+  // Gửi kết quả gộp – an toàn, không flood
   let finalMsg = "⚔️ <b>KẾT QUẢ ARENA 6 LẦN</b>\n\n";
-  for (const name of ACCOUNTS.map((a) => a.name)) {
-    finalMsg += (results[name] || "❌ Không thực hiện được") + "\n";
+  for (const acc of ACCOUNTS) {
+    finalMsg += (results[acc.name] || "❌ Không thực hiện") + "\n";
   }
 
-  // Chia nhỏ nếu quá dài (>4000 ký tự)
   const chunks = finalMsg.match(/.{1,3800}(\n|$)/gs) || [finalMsg];
   for (const chunk of chunks) {
     await sendTelegram(chunk.trim());
-    await delay(1000); // Tránh flood dù đã rất ít tin
+    await delay(1000);
   }
 
-  await ctx.reply("✅ <b>Hoàn thành Arena 6 lần!</b>");
+  await ctx.reply("✅ Hoàn thành Arena 6 lần!");
 });
 
 // 2. /greenhouse – Gọi mode=greenhouse 1 lần mỗi tài khoản
