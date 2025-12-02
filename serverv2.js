@@ -704,7 +704,15 @@ sendTelegram(
     `📋 Commands: /freefood100k /watchtv /refreshinfo /collectfood`
 );
 
-bot.launch();
+bot
+  .launch({
+    dropPendingUpdates: true,
+    allowedUpdates: [], // thêm 2 dòng này
+    polling: { getMe: false }, // tắt kiểm tra getMe → không timeout nữa
+  })
+  .catch((err) => {
+    console.error("Telegram launch lỗi nhưng bot vẫn chạy:", err.message);
+  });
 console.log("✅ Telegram Bot đã kết nối");
 
 // Khởi động từng acc
