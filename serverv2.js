@@ -550,51 +550,77 @@ bot.command("arena", async (ctx) => {
   await ctx.reply(
     "⚔️ <b>Đang thực hiện Arena 6 lần cho tất cả tài khoản...</b>"
   );
-  await sendTelegram("⚔️ <b>COMMAND: ARENA 6 LẦN</b>");
+  await sendTelegram("⚔️ <b>COMMAND: ARENA 6 LẦN - BẮT ĐẦU</b>");
 
-  const promises = ACCOUNTS.map(async (account) => {
-    const botData = bots[account.name];
-    if (!botData?.client || !botData.running) return;
+  const results = {}; // Lưu kết quả từng acc để gộp lại gửi 1 lần cuối
 
-    for (let round = 1; round <= 6; round++) {
-      if (!isGlobalRunning || !bots[account.name]?.running) break;
-
-      await sendTelegram(`⚔️ <b>${account.name}</b> → Vòng Arena ${round}/6`);
-
-      for (const step of WATERFALL_STEPS) {
-        try {
-          const res = await botData.client.post(
-            PACKET_URL,
-            `mode=${step.mode}`,
-            {
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            }
-          );
-          const result =
-            typeof res.data === "object"
-              ? JSON.stringify(res.data)
-              : (res.data || "").trim();
-          const icon =
-            result.toLowerCase().includes("thành công") || result === "OK"
-              ? "✅"
-              : "⚠️";
-          await sendTelegram(
-            `${icon} <b>${account.name}</b> → ${step.name} (lần ${round})\n<code>${result}</code>`
-          );
-        } catch (err) {
-          const msg = err.response?.data || err.message;
-          await sendTelegram(
-            `❌ <b>${account.name}</b> → ${step.name} thất bại (lần ${round})\n<code>${msg}</code>`
-          );
-        }
-        await delay(1200 + Math.random() * 1800);
+  await Promise.all(
+    ACCOUNTS.map(async (account) => {
+      const botData = bots[account.name];
+      if (!botData?.client || !botData.running) {
+        results[account.name] = "⚠️ Bot không chạy hoặc chưa login";
+        return;
       }
-      if (round < 6) await delay(3000); // Nghỉ giữa các vòng arena
-    }
-  });
 
-  await Promise.all(promises);
-  await ctx.reply("✅ <b>Hoàn thành Arena 6 lần cho tất cả tài khoản!</b>");
+      let summary = `<b>${account.name}</b> → Arena 6 lần:\n`;
+
+      for (let round = 1; round <= 6; round++) {
+        if (!isGlobalRunning || !bots[account.name]?.running) {
+          summary += `❌ Dừng giữa chừng tại vòng ${round}\n`;
+          break;
+        }
+
+        let roundSuccess = true;
+        let roundMsg = `   • Vòng ${round}: `;
+
+        for (const step of WATERFALL_STEPS) {
+          try {
+            const res = await botData.client.post(
+              PACKET_URL,
+              `mode=${step.mode}`,
+              {
+                headers: {
+                  "Content-Type": "application/x-www-form-urlencoded",
+                },
+              }
+            );
+            const result = (res.data || "").toString().trim();
+            const success =
+              result.toLowerCase().includes("thành công") || result === "OK";
+
+            if (!success) roundSuccess = false;
+
+            // Không gửi từng tin ở đây nữa
+          } catch (err) {
+            roundSuccess = false;
+          }
+          await delay(1200 + Math.random() * 1800);
+        }
+
+        roundMsg += roundSuccess ? "✅" : "❌";
+        summary += roundMsg + "\n";
+
+        if (round < 6) await delay(3000);
+      }
+
+      results[account.name] = summary;
+    })
+  );
+
+  // === GỘP TẤT CẢ KẾT QUẢ GỬI 1 LẦN DUY NHẤT ===
+  let finalMsg = "⚔️ <b>KẾT QUẢ ARENA 6 LẦN</b>\n\n";
+  for (const name of ACCOUNTS.map((a) => a.name)) {
+    finalMsg += (results[name] || "❌ Không thực hiện được") + "\n";
+  }
+
+  // Chia nhỏ nếu quá dài (>4000 ký tự)
+  const chunks = finalMsg.match(/.{1,3800}(\n|$)/gs) || [finalMsg];
+  for (const chunk of chunks) {
+    await sendTelegram(chunk.trim());
+    await delay(1000); // Tránh flood dù đã rất ít tin
+  }
+
+  await ctx.reply("✅ <b>Hoàn thành Arena 6 lần!</b>");
 });
 
 // 2. /greenhouse – Gọi mode=greenhouse 1 lần mỗi tài khoản
